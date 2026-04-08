@@ -43,6 +43,8 @@ set(SOURCES
     src/net/HttpClient.cpp
     src/net/ApiClient.cpp
     src/net/SseClient.cpp
+    src/ui/NetworkMenu.cpp
+    src/ui/GalaxyOverlay.cpp
 )
 
 set(HEADERS
@@ -50,6 +52,8 @@ set(HEADERS
     src/net/HttpClient.h
     src/net/ApiClient.h
     src/net/SseClient.h
+    src/ui/NetworkMenu.h
+    src/ui/GalaxyOverlay.h
 )
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})

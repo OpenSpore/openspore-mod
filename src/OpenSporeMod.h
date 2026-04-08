@@ -11,6 +11,8 @@
 #include "net/HttpClient.h"
 #include "net/ApiClient.h"
 #include "net/SseClient.h"
+#include "ui/NetworkMenu.h"
+#include "ui/GalaxyOverlay.h"
 
 #include <string>
 #include <unordered_map>
@@ -19,8 +21,7 @@
 
 namespace OpenSpore {
 
-/// Main mod class: handles network synchronization for the Space stage.
-/// Implements IUpdatable for per-frame updates and IUnmanagedMessageListener for game events.
+/// Main mod class: network sync + UI for Space Stage multiplayer.
 class OpenSporeMod
     : public App::IUpdatable
     , public App::IUnmanagedMessageListener
@@ -32,14 +33,13 @@ public:
     OpenSporeMod();
     ~OpenSporeMod();
 
-    // -- Lifecycle --
     void Initialize();
     void Dispose();
 
-    // -- IUpdatable --
+    // App::IUpdatable
     void Update() override;
 
-    // -- IUnmanagedMessageListener --
+    // App::IUnmanagedMessageListener
     bool HandleMessage(uint32_t messageID, void* msg) override;
 
 private:
@@ -66,8 +66,16 @@ private:
     void HandleDiplomacyAccepted(const nlohmann::json& data);
     void HandleDiplomacyRejected(const nlohmann::json& data);
 
-    // -- Galaxy overlay --
-    void UpdateGalaxyOverlay();
+    // -- UI --
+    void InitUI();
+    void ShutdownUI();
+    void OnSpaceEntered();
+    void OnSpaceLeft();
+    void RefreshUI();         // push current state to menu + overlay
+
+    // -- NetworkMenu callbacks --
+    void OnConnectRequested(const ConnectParams& p);
+    void OnResetIdentity();
 
     // -- Helpers --
     std::string GetPlayerEmpireName();
@@ -77,21 +85,30 @@ private:
 
     // -- Network --
     HttpClient mHttpClient;
-    ApiClient mApiClient;
-    SseClient mSseClient;
+    ApiClient  mApiClient;
+    SseClient  mSseClient;
+
+    // -- UI --
+    NetworkMenu   mNetworkMenu;
+    GalaxyOverlay mGalaxyOverlay;
 
     // -- State --
     std::string mPlayerId;
+    std::string mEmpireName; // cached
     std::string mEmpireId;
     std::string mAuthToken;
-    bool mRegistered = false;
-    bool mInSpaceStage = false;
+    bool mRegistered    = false;
+    bool mInSpaceStage  = false;
+    bool mConnected     = false; // server reachable + heartbeat OK
+
+    // -- Key toggle (F9) --
+    bool mF9WasDown = false;
 
     // -- Timers --
-    float mHeartbeatTimer = 0.0f;
-    float mGalaxyPollTimer = 0.0f;
-    static constexpr float kHeartbeatInterval = 30.0f;  // seconds
-    static constexpr float kGalaxyPollInterval = 15.0f;  // seconds
+    float mHeartbeatTimer   = 0.0f;
+    float mGalaxyPollTimer  = 0.0f;
+    static constexpr float kHeartbeatInterval  = 30.0f;
+    static constexpr float kGalaxyPollInterval = 15.0f;
 
     // -- Remote empires --
     std::mutex mEmpiresMutex;
@@ -102,7 +119,6 @@ private:
     int mServerPort = 8080;
 };
 
-/// Global singleton accessor
 OpenSporeMod* GetOpenSporeMod();
 
 } // namespace OpenSpore

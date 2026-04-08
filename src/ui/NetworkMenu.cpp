@@ -1,20 +1,24 @@
 #include "NetworkMenu.h"
 #include <Spore\UTFWin\IWindowManager.h>
 
+using namespace UTFWin;
+
 namespace OpenSpore {
 
-// Helper: convert std::string (ASCII/UTF-8) to eastl::string16
 static eastl::string16 ToStr16(const std::string& s) {
-    eastl::string16 result;
-    for (unsigned char c : s) result += (char16_t)c;
-    return result;
+    eastl::string16 r;
+    for (unsigned char c : s) r += (char16_t)c;
+    return r;
+}
+
+// Helper: get IWindow* from an IWindowList_t iterator
+static IWindow* WinFromIt(IWindowList_t::iterator it) {
+    return static_cast<IWindow*>(&*it);
 }
 
 // ============================================================================
-// NetworkMenu
-// ============================================================================
-
 NetworkMenu::NetworkMenu() = default;
+
 NetworkMenu::~NetworkMenu() {
     if (mBuilt && mpRoot) {
         WindowManager.GetMainWindow()->RemoveWindow(mpRoot.get());
@@ -29,12 +33,15 @@ void NetworkMenu::SetCallbacks(OnConnectCallback onConnect, OnResetCallback onRe
 void NetworkMenu::SetDefaultAddress(const std::string& host, int port) {
     if (!mBuilt) return;
     if (mpHostEdit) mpHostEdit->SetText(ToStr16(host).c_str(), (int)host.size());
-    if (mpPortEdit) mpPortEdit->SetText(ToStr16(std::to_string(port)).c_str(), 5);
+    if (mpPortEdit) {
+        auto ps = std::to_string(port);
+        mpPortEdit->SetText(ToStr16(ps).c_str(), (int)ps.size());
+    }
 }
 
 void NetworkMenu::Show() {
     if (!mBuilt) Build();
-    if (mpRoot) mpRoot->SetVisible(true);
+    if (mpRoot)  mpRoot->SetVisible(true);
     mVisible = true;
 }
 
@@ -45,13 +52,9 @@ void NetworkMenu::Hide() {
 
 void NetworkMenu::SetStatus(const std::string& status, bool connected) {
     if (!mBuilt || !mpRoot) return;
-
-    // Find status label child window
-    IWindow* pLabel = mpRoot->FindWindowByID(kCtrlStatus);
+    IWindow* pLabel = mpRoot->FindWindowByID(kCtrlStatus, true);
     if (pLabel) {
-        auto wstr = ToStr16(status);
-        pLabel->SetCaption(wstr.c_str());
-        // Green if connected, red if not
+        pLabel->SetCaption(ToStr16(status).c_str());
         pLabel->SetShadeColor(connected
             ? Math::Color(80, 220, 80, 255)
             : Math::Color(220, 80, 80, 255));
@@ -61,131 +64,110 @@ void NetworkMenu::SetStatus(const std::string& status, bool connected) {
 void NetworkMenu::SetPlayers(const std::unordered_map<std::string, EmpireData>& players) {
     if (!mBuilt || !mpPlayersList) return;
 
-    // Remove existing player rows (children after the header)
-    auto* list = mpPlayersList.get();
-    // Remove all children first
+    IWindow* list = mpPlayersList.get();
+    // Remove all children
     while (list->GetChildrenBegin() != list->GetChildrenEnd()) {
-        list->RemoveWindow(*list->GetChildrenBegin());
+        list->RemoveWindow(WinFromIt(list->GetChildrenBegin()));
     }
 
-    float rowY = 0.0f;
-    const float kRowH = 24.0f;
-    const float kListW = kW - 40.0f; // matches the list panel width
+    float y = 0.0f;
+    const float kRowH  = 24.0f;
+    const float kListW = kW - 40.0f;
 
     if (players.empty()) {
-        auto label = MakeLabel(0, rowY, kListW, rowY + kRowH,
+        auto label = MakeLabel(0, y, kListW, y + kRowH,
             u"No other players online", {160, 160, 160, 255});
         list->AddWindow(label.get());
         return;
     }
 
     for (auto& [id, emp] : players) {
-        float y = rowY;
-
-        // Color swatch (small square)
-        auto swatch = MakePanel(4.0f, y + 4.0f, 18.0f, y + 18.0f,
+        auto swatch = MakePanel(4, y + 4, 18, y + 18,
             Math::Color(emp.color[0], emp.color[1], emp.color[2], 255));
         list->AddWindow(swatch.get());
 
-        // Player name + home world
-        eastl::string16 caption = ToStr16(emp.name) + u" \u2014 " + ToStr16(emp.homeWorld);
+        eastl::string16 caption = ToStr16(emp.name) + u"  \u2014  " + ToStr16(emp.homeWorld);
         if (!emp.online) caption += u" (offline)";
 
-        auto nameLabel = MakeLabel(24.0f, y, kListW - 8.0f, y + kRowH,
-            caption.c_str(),
+        auto nameLabel = MakeLabel(24, y, kListW - 8, y + kRowH, caption.c_str(),
             emp.online ? Math::Color(220, 220, 220, 255) : Math::Color(120, 120, 120, 255));
         list->AddWindow(nameLabel.get());
 
-        rowY += kRowH + 2.0f;
+        y += kRowH + 2.0f;
     }
 }
 
 // ============================================================================
-// Build (one-time window construction)
+// Build
 // ============================================================================
 
 void NetworkMenu::Build() {
     mBuilt = true;
 
-    // Backdrop (semi-transparent dark overlay covering the whole screen)
+    // Full-screen backdrop
     mpRoot = MakePanel(0, 0, 1024, 768, Math::Color(0, 0, 0, 140));
     mpRoot->SetVisible(false);
 
     // Dialog panel
-    auto dialog = MakePanel(kX, kY, kX + kW, kY + kH,
-        Math::Color(18, 20, 30, 245), Math::Color(60, 80, 120, 80));
+    auto dialog = MakePanel(kX, kY, kX + kW, kY + kH, Math::Color(18, 20, 30, 245));
 
     // Title bar
     auto titleBar = MakePanel(0, 0, kW, 40, Math::Color(30, 40, 70, 255));
-    auto titleLabel = MakeLabel(10, 6, kW - 40, 34, u"OpenSpore \u2014 Multiplayer",
+    auto titleLabel = MakeLabel(10, 6, kW - 44, 34, u"OpenSpore  Multiplayer",
         Math::Color(200, 220, 255, 255));
     titleBar->AddWindow(titleLabel.get());
-
-    // Close button [X]
     auto closeBtn = MakeButton(kW - 36, 4, kW - 4, 36, u"X", kBtnClose);
     titleBar->AddWindow(closeBtn->ToWindow());
     dialog->AddWindow(titleBar.get());
 
-    // --- Connection section ---
+    // Server address
     auto connLabel = MakeLabel(14, 52, 200, 70, u"Server address:",
         Math::Color(160, 180, 220, 255));
     dialog->AddWindow(connLabel.get());
 
-    // Host text edit
     mpHostEdit = MakeTextEdit(14, 72, 340, 96, u"localhost", kCtrlHostEdit);
     dialog->AddWindow(mpHostEdit->ToWindow());
 
-    // ":" separator label
-    auto colonLabel = MakeLabel(344, 72, 356, 96, u":",
-        Math::Color(180, 180, 180, 255));
-    dialog->AddWindow(colonLabel.get());
+    auto colon = MakeLabel(344, 72, 356, 96, u":", {180, 180, 180, 255});
+    dialog->AddWindow(colon.get());
 
-    // Port text edit
     mpPortEdit = MakeTextEdit(358, 72, 430, 96, u"8080", kCtrlPortEdit);
     mpPortEdit->SetMaxTextLength(5);
     dialog->AddWindow(mpPortEdit->ToWindow());
 
-    // Connect button
     auto connectBtn = MakeButton(438, 72, kW - 14, 96, u"Connect", kBtnConnect);
     dialog->AddWindow(connectBtn->ToWindow());
 
-    // Status bar
+    // Status row
     auto statusBg = MakePanel(14, 104, kW - 14, 128, Math::Color(10, 10, 18, 200));
-    auto statusLabel = MakeLabel(8, 4, kW - 28 - 14, 20, u"Not connected",
+    auto statusLabel = MakeLabel(8, 4, kW - 42, 20, u"Not connected",
         Math::Color(220, 80, 80, 255));
     statusLabel->SetControlID(kCtrlStatus);
     statusBg->AddWindow(statusLabel.get());
     dialog->AddWindow(statusBg.get());
-    mpStatusPanel = statusBg;
 
-    // --- Online players section ---
+    // Players header
     auto playersHeader = MakeLabel(14, 136, kW - 14, 154, u"Online players:",
         Math::Color(160, 180, 220, 255));
     dialog->AddWindow(playersHeader.get());
 
-    // Players scroll area (fixed-height panel, no actual scrolling in MVP)
-    float listTop  = 156.0f;
-    float listH    = kH - listTop - 60.0f; // leave room for bottom buttons
-    auto listBg = MakePanel(14, listTop, kW - 14, listTop + listH,
+    // Players list area
+    float listTop = 156.0f;
+    float listH   = kH - listTop - 60.0f;
+    mpPlayersList = MakePanel(14, listTop, kW - 14, listTop + listH,
         Math::Color(10, 10, 18, 180));
-    listBg->SetControlID(kCtrlPlayersList);
-    mpPlayersList = listBg;
-    dialog->AddWindow(listBg.get());
+    mpPlayersList->SetControlID(kCtrlPlayersList);
+    dialog->AddWindow(mpPlayersList.get());
 
-    // --- Bottom buttons ---
+    // Bottom buttons
     float btnY = kH - 50.0f;
-    auto resetBtn = MakeButton(14, btnY, 180, btnY + 34, u"Reset my identity", kBtnResetId);
-    dialog->AddWindow(resetBtn->ToWindow());
-
+    auto resetBtn  = MakeButton(14, btnY, 200, btnY + 34, u"Reset my identity", kBtnResetId);
     auto closeBtn2 = MakeButton(kW - 120, btnY, kW - 14, btnY + 34, u"Close", kBtnClose);
+    dialog->AddWindow(resetBtn->ToWindow());
     dialog->AddWindow(closeBtn2->ToWindow());
 
-    // Attach this WinProc to the dialog (catches button clicks)
-    dialog->AddWinProc(this);
-
+    dialog->AddWinProc(static_cast<UTFWin::IWinProc*>(this));
     mpRoot->AddWindow(dialog.get());
-
-    // Add root to the game's main window
     WindowManager.GetMainWindow()->AddWindow(mpRoot.get());
 }
 
@@ -205,23 +187,16 @@ bool NetworkMenu::HandleUIMessage(IWindow* pWindow, const Message& message) {
 
     if (cmd == kBtnConnect) {
         ConnectParams p;
-
-        // Read host
         if (mpHostEdit) {
             const char16_t* h = mpHostEdit->GetText();
-            if (h) {
-                while (*h) p.host += (char)(*h++);
-            }
+            while (h && *h) p.host += (char)(*h++);
         }
         if (p.host.empty()) p.host = "localhost";
 
-        // Read port
         std::string portStr;
         if (mpPortEdit) {
-            const char16_t* pStr = mpPortEdit->GetText();
-            if (pStr) {
-                while (*pStr) portStr += (char)(*pStr++);
-            }
+            const char16_t* ps = mpPortEdit->GetText();
+            while (ps && *ps) portStr += (char)(*ps++);
         }
         p.port = portStr.empty() ? 8080 : std::stoi(portStr);
 
@@ -238,7 +213,7 @@ bool NetworkMenu::HandleUIMessage(IWindow* pWindow, const Message& message) {
 }
 
 // ============================================================================
-// Static factory helpers
+// Factory helpers
 // ============================================================================
 
 WindowPtr NetworkMenu::MakePanel(float x1, float y1, float x2, float y2,
@@ -254,15 +229,15 @@ WindowPtr NetworkMenu::MakeLabel(float x1, float y1, float x2, float y2,
                                   const char16_t* text, Math::Color textColor) {
     WindowPtr w = new Window();
     w->SetArea(Math::Rectangle(x1, y1, x2, y2));
-    w->SetFillColor(Math::Color(0, 0, 0, 0)); // transparent
+    w->SetFillColor(Math::Color(0, 0, 0, 0));
     w->SetCaption(text);
     w->SetShadeColor(textColor);
     return w;
 }
 
-intrusive_ptr<IButton> NetworkMenu::MakeButton(float x1, float y1, float x2, float y2,
-                                                const char16_t* text, uint32_t commandID) {
-    intrusive_ptr<IButton> btn = IButton::Create();
+eastl::intrusive_ptr<IButton> NetworkMenu::MakeButton(float x1, float y1, float x2, float y2,
+                                                       const char16_t* text, uint32_t commandID) {
+    eastl::intrusive_ptr<IButton> btn = IButton::Create();
     btn->ToWindow()->SetArea(Math::Rectangle(x1, y1, x2, y2));
     btn->ToWindow()->SetCaption(text);
     btn->ToWindow()->SetCommandID(commandID);
@@ -271,14 +246,13 @@ intrusive_ptr<IButton> NetworkMenu::MakeButton(float x1, float y1, float x2, flo
     return btn;
 }
 
-intrusive_ptr<ITextEdit> NetworkMenu::MakeTextEdit(float x1, float y1, float x2, float y2,
-                                                    const char16_t* placeholder, uint32_t controlID) {
-    intrusive_ptr<ITextEdit> edit = ITextEdit::Create();
+eastl::intrusive_ptr<ITextEdit> NetworkMenu::MakeTextEdit(float x1, float y1, float x2, float y2,
+                                                           const char16_t* placeholder, uint32_t controlID) {
+    eastl::intrusive_ptr<ITextEdit> edit = ITextEdit::Create();
     edit->ToWindow()->SetArea(Math::Rectangle(x1, y1, x2, y2));
     edit->ToWindow()->SetControlID(controlID);
     edit->ToWindow()->SetFillColor(Math::Color(25, 28, 42, 240));
     edit->ToWindow()->SetShadeColor(Math::Color(180, 190, 220, 255));
-    // Set placeholder as initial text
     edit->SetText(placeholder, -1);
     return edit;
 }

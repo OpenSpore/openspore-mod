@@ -7,7 +7,6 @@
 #include <Spore\UTFWin\IWinProc.h>
 #include <Spore\UTFWin\IWindowManager.h>
 #include <Spore\UTFWin\Message.h>
-#include <Spore\UTFWin\UTFWinObject.h>
 
 #include "../net/ApiClient.h"
 
@@ -17,14 +16,12 @@
 
 namespace OpenSpore {
 
-using namespace UTFWin;
-
 // Button command IDs
-static constexpr uint32_t kBtnConnect  = 0x4F534E01; // OSN1
-static constexpr uint32_t kBtnClose    = 0x4F534E02; // OSN2
-static constexpr uint32_t kBtnResetId  = 0x4F534E03; // OSN3
+static constexpr uint32_t kBtnConnect = 0x4F534E01;
+static constexpr uint32_t kBtnClose   = 0x4F534E02;
+static constexpr uint32_t kBtnResetId = 0x4F534E03;
 
-// Control IDs for FindWindowByID
+// Control IDs
 static constexpr uint32_t kCtrlStatus      = 0x4F534E10;
 static constexpr uint32_t kCtrlHostEdit    = 0x4F534E11;
 static constexpr uint32_t kCtrlPortEdit    = 0x4F534E12;
@@ -35,9 +32,8 @@ struct ConnectParams {
     int port;
 };
 
-/// Fullscreen modal network menu. Toggled with F9 key.
-/// Shows server connection settings and lists online players.
-class NetworkMenu : public DefaultWinProc<kEventFlagBasicInput | kEventFlagAdvanced> {
+/// Modal network menu toggled with F9.
+class NetworkMenu : public UTFWin::DefaultWinProc<UTFWin::kEventFlagBasicInput | UTFWin::kEventFlagAdvanced> {
 public:
     using OnConnectCallback = std::function<void(const ConnectParams&)>;
     using OnResetCallback   = std::function<void()>;
@@ -51,42 +47,33 @@ public:
     void Hide();
     bool IsVisible() const { return mVisible; }
 
-    /// Call every frame to update status text and player list.
     void SetStatus(const std::string& status, bool connected);
     void SetPlayers(const std::unordered_map<std::string, EmpireData>& players);
-
-    /// Populate host/port fields from saved config.
     void SetDefaultAddress(const std::string& host, int port);
 
 private:
-    bool HandleUIMessage(IWindow* pWindow, const Message& message) override;
+    bool HandleUIMessage(UTFWin::IWindow* pWindow, const UTFWin::Message& message) override;
 
     void Build();
 
-    /// Create a styled panel Window.
     static WindowPtr MakePanel(float x1, float y1, float x2, float y2,
                                 Math::Color fill, Math::Color shade = {0,0,0,0});
-    /// Create a text label Window.
     static WindowPtr MakeLabel(float x1, float y1, float x2, float y2,
                                 const char16_t* text, Math::Color textColor = {255,255,255,255});
-    /// Create a button.
-    static intrusive_ptr<IButton> MakeButton(float x1, float y1, float x2, float y2,
-                                              const char16_t* text, uint32_t commandID);
-    /// Create a text edit field.
-    static intrusive_ptr<ITextEdit> MakeTextEdit(float x1, float y1, float x2, float y2,
-                                                  const char16_t* placeholder, uint32_t controlID);
+    static eastl::intrusive_ptr<UTFWin::IButton>   MakeButton(float x1, float y1, float x2, float y2,
+                                                               const char16_t* text, uint32_t commandID);
+    static eastl::intrusive_ptr<UTFWin::ITextEdit> MakeTextEdit(float x1, float y1, float x2, float y2,
+                                                                 const char16_t* placeholder, uint32_t controlID);
 
-    // Layout constants (designed for 1024x768 minimum)
-    static constexpr float kW = 500.0f;
-    static constexpr float kH = 420.0f;
-    static constexpr float kX = (1024.0f - kW) * 0.5f; // 262
-    static constexpr float kY = (768.0f  - kH) * 0.5f; // 174
+    static constexpr float kW  = 500.0f;
+    static constexpr float kH  = 420.0f;
+    static constexpr float kX  = (1024.0f - kW) * 0.5f;
+    static constexpr float kY  = (768.0f  - kH) * 0.5f;
 
-    WindowPtr                mpRoot;
-    WindowPtr                mpStatusPanel;
-    intrusive_ptr<ITextEdit> mpHostEdit;
-    intrusive_ptr<ITextEdit> mpPortEdit;
-    WindowPtr                mpPlayersList;
+    WindowPtr                              mpRoot;
+    eastl::intrusive_ptr<UTFWin::ITextEdit> mpHostEdit;
+    eastl::intrusive_ptr<UTFWin::ITextEdit> mpPortEdit;
+    WindowPtr                              mpPlayersList;
 
     bool mVisible = false;
     bool mBuilt   = false;

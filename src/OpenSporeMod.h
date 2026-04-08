@@ -3,10 +3,10 @@
 #include <Spore\BasicIncludes.h>
 #include <Spore\Simulator\SubSystem\StarManager.h>
 #include <Spore\Simulator\SubSystem\GameNounManager.h>
+#include <Spore\Simulator\SubSystem\SpacePlayerData.h>
 #include <Spore\Simulator\cEmpire.h>
 #include <Spore\Simulator\cStarRecord.h>
-#include <Spore\Simulator\cPlanetRecord.h>
-#include <Spore\Simulator\SubSystem\SpacePlayerData.h>
+#include <Spore\App\IMessageManager.h>
 
 #include "net/HttpClient.h"
 #include "net/ApiClient.h"
@@ -22,25 +22,23 @@
 namespace OpenSpore {
 
 /// Main mod class: network sync + UI for Space Stage multiplayer.
+/// Uses lambda-based AddUpdateFunction; implements IUnmanagedMessageListener directly.
 class OpenSporeMod
-    : public App::IUpdatable
-    , public App::IUnmanagedMessageListener
-    , public DefaultRefCounted
+    : public App::IUnmanagedMessageListener
+    , public DefaultObject
 {
 public:
-    static const uint32_t TYPE = id("OpenSporeMod");
-
     OpenSporeMod();
     ~OpenSporeMod();
 
     void Initialize();
     void Dispose();
 
-    // App::IUpdatable
-    void Update() override;
+    // Called every frame via lambda registered with App::AddUpdateFunction
+    void Update();
 
     // App::IUnmanagedMessageListener
-    bool HandleMessage(uint32_t messageID, void* msg) override;
+    virtual bool HandleMessage(uint32_t messageID, void* msg) override;
 
 private:
     // -- Persistence --
@@ -71,7 +69,7 @@ private:
     void ShutdownUI();
     void OnSpaceEntered();
     void OnSpaceLeft();
-    void RefreshUI();         // push current state to menu + overlay
+    void RefreshUI();
 
     // -- NetworkMenu callbacks --
     void OnConnectRequested(const ConnectParams& p);
@@ -92,21 +90,24 @@ private:
     NetworkMenu   mNetworkMenu;
     GalaxyOverlay mGalaxyOverlay;
 
+    // -- Update listener handle --
+    eastl::intrusive_ptr<App::UpdateMessageListener> mUpdateListener;
+
     // -- State --
     std::string mPlayerId;
-    std::string mEmpireName; // cached
+    std::string mEmpireName;
     std::string mEmpireId;
     std::string mAuthToken;
-    bool mRegistered    = false;
-    bool mInSpaceStage  = false;
-    bool mConnected     = false; // server reachable + heartbeat OK
+    bool mRegistered   = false;
+    bool mInSpaceStage = false;
+    bool mConnected    = false;
 
-    // -- Key toggle (F9) --
+    // -- F9 key toggle --
     bool mF9WasDown = false;
 
     // -- Timers --
-    float mHeartbeatTimer   = 0.0f;
-    float mGalaxyPollTimer  = 0.0f;
+    float mHeartbeatTimer  = 0.0f;
+    float mGalaxyPollTimer = 0.0f;
     static constexpr float kHeartbeatInterval  = 30.0f;
     static constexpr float kGalaxyPollInterval = 15.0f;
 

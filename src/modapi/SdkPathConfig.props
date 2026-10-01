@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Edit these two paths for your machine (the ModAPI SDK Easy Installer normally generates this file). -->
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros">
+    <SporeSdkPath>C:\Spore ModAPI SDK\</SporeSdkPath>
+    <SporeLauncherPath>C:\Program Files (x86)\Spore ModAPI Launcher Kit\</SporeLauncherPath>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemDefinitionGroup />
+  <ItemGroup>
+    <BuildMacro Include="SporeSdkPath"><Value>$(SporeSdkPath)</Value><EnvironmentVariable>true</EnvironmentVariable></BuildMacro>
+    <BuildMacro Include="SporeLauncherPath"><Value>$(SporeLauncherPath)</Value><EnvironmentVariable>true</EnvironmentVariable></BuildMacro>
+  </ItemGroup>
+</Project>

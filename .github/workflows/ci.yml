@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  linux-tests:
+    name: Native tests (Linux) + mingw cross-build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake ninja-build g++ mingw-w64
+      - name: Configure and build tests
+        run: cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build-linux
+      - name: Run tests
+        run: ./build-linux/osmp_tests
+      - name: Cross-build lab DLL, injector and netlab (32-bit Windows)
+        run: ./src/lab/build-mingw.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: osmp-lab-win32-mingw
+          path: build-win32/
+
+  windows-msvc:
+    name: MSVC x86 build (lab DLL, netlab, tests)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (Win32)
+        run: cmake -S . -B build-msvc -A Win32
+      - name: Build
+        run: cmake --build build-msvc --config Release
+      - name: Run tests
+        run: .\build-msvc\Release\osmp_tests.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: osmp-lab-win32-msvc
+          path: |
+            build-msvc/Release/osmp_lab.dll
+            build-msvc/Release/inject.exe
+            build-msvc/Release/osmp_netlab.exe
